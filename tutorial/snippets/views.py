@@ -1,54 +1,50 @@
 #i!/usr/bin/env python
 # -*- coding:utf-8 -*- 
 
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.renderers import JSONRenderer
-from rest_framework.parsers import JSONParser
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from snippets.models import Snippet
 from snippets.serializers import SnippetSerializer
 
-@csrf_exempt    #因为我们需要POST数据，到这个视图的客户端，并没有CSRF令牌（token），所以我们需要为该视图标记为 csrf_exempt 
-def snippet_list(request):
+
+@api_view(['GET', 'POST'])
+def snippet_list(request, format=None):
     """
-    @description: 列出所有的代码片段或创建一个新的代码片段
+    @description: 列出所有的代码片段，或创建新的代码片段
     """
     if request.method == 'GET':
         snippets = Snippet.objects.all()
-        serializer = SnippetSerializer(snippets, many=True)    #将querySet进行序列化
-        return JsonResponse(serializer.data, safe=False)    #safe若设置为False,那么第一个参数可以是任何可被JSON序列化的对象（https://docs.djangoproject.com/en/2.0/ref/request-response/#jsonresponse-objects）
+        serializer = SnippetSerializer(snippets, many=True)
+        return Response(serializer.data)    #根据客户端的要求，把内容生成对应的形式
     elif request.method == 'POST':
-        data = JSONParser().parse(request)    #将request解析成python的原生数据类型
-        serializer = SnippetSerializer(data=data)    #将原生数据类型，还原到一个被填充完毕的对象实例中
         if serializer.is_valid():
             serializer.save()
-            return JsonResponse(serializer.data, status=201)
-        return JsonResponse(serializer.errors, status=400)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-@csrf_exempt
-def snippet_detail(request, pk):
+def snippet_detail(request, pk, format=None):
     """
     @description: 获取、更新、删除一个代码片段
     """
     try:
         snippet = Snippet.objects.get(pk=pk)
-    except Snippet.Snippet.DoesNotExist:
-        return HttpResponse(status=404)
+    except Snippet.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
-        serializer = SnippetSerializer(snippet)    #对模型实例进行序列化
-        return JsonResponse(serializer.data)
+        serializer = SnippetSerializer(snippet)
+        return Response(serializer.data)
+
     elif request.method == 'PUT':
-        data = JSONParser().parse(request)
-        serializer = SnippetSerializer(snippet, data=data)
+        serializer = SnippetSerializer(snippet, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return JsonResponse(serializer.data)
-        return JsonResponse(serializer.errors, status=400)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     elif request.method == 'DELETE':
         snippet.delete()
-        return HttpResponse(status=204)
-
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
